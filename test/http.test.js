@@ -125,8 +125,8 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').send().then(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             });
         });
@@ -135,8 +135,8 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').send(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             });
         });
@@ -145,11 +145,11 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').send().then(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             }).then(() => {
-                JSON.parse(mockSocket.lastSentMessage).body.should.have.a.property('method').that.equals('get');
+                JSON.parse(mockSocket.lastSentMessage)._b.should.have.a.property('_m').that.equals('get');
             });
         });
 
@@ -157,11 +157,11 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').send().then(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             }).then(() => {
-                JSON.parse(mockSocket.lastSentMessage).body.should.have.a.property('url').that.equals('/test');
+                JSON.parse(mockSocket.lastSentMessage)._b.should.have.a.property('_u').that.equals('/test');
             });
         });
 
@@ -169,11 +169,11 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').body('hello').send().then(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             }).then(() => {
-                JSON.parse(mockSocket.lastSentMessage).body.should.have.a.property('body').that.equals('hello');
+                JSON.parse(mockSocket.lastSentMessage)._b.should.have.a.property('_b').that.equals('hello');
             });
         });
 
@@ -181,11 +181,11 @@ describe('HTTP', () => {
             return new Promise((resolve) => {
                 testSocket.http('get', '/test').query('key=value').send().then(resolve);
                 mockSocket.fire('message', {
-                    responseId: JSON.parse(mockSocket.lastSentMessage).requestId,
-                    body: {}
+                    _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                    _b: {}
                 });
             }).then(() => {
-                JSON.parse(mockSocket.lastSentMessage).body.should.have.a.property('url').that.equals('/test?key=value');
+                JSON.parse(mockSocket.lastSentMessage)._b.should.have.a.property('_u').that.equals('/test?key=value');
             });
         });
 
@@ -194,18 +194,83 @@ describe('HTTP', () => {
                 .should.be.rejectedWith(Error, 'Timed out after 10 ms');
         });
 
-        it('Sends the request with a request ID of "event" when no response is expected', () => {
-            testSocket.http('get', '/test').expectResponse(false).send();
-            JSON.parse(mockSocket.lastSentMessage).should.have.a.property('requestId').that.equals('event');
-        });
-
-        it('Sends the request object as the body when no response is expected', () => {
+        it('Sends the request object alone when no response is expected', () => {
             testSocket.http('get', '/test').body('hello').expectResponse(false).send();
             const lastSentMessage = JSON.parse(mockSocket.lastSentMessage);
-            lastSentMessage.should.have.a.property('body');
-            lastSentMessage.body.should.have.a.property('url').that.equals('/test');
-            lastSentMessage.body.should.have.a.property('method').that.equals('get');
-            lastSentMessage.body.should.have.a.property('body').that.equals('hello');
+            lastSentMessage.should.have.a.property('_u').that.equals('/test');
+            lastSentMessage.should.have.a.property('_m').that.equals('get');
+            lastSentMessage.should.have.a.property('_b').that.equals('hello');
+        });
+
+        context('Translates responses', () => {
+
+            it('Translates a good response when using a callback', () => {
+                return new Promise((resolve) => {
+                    testSocket.http('get', '/test').send((res) => {
+                        res.should.have.a.property('status').that.equals(42);
+                        res.should.have.a.property('body').that.equals('hello');
+                        resolve();
+                    });
+                    mockSocket.fire('message', {
+                        _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                        _b: {
+                            _s: 42,
+                            _b: 'hello'
+                        }
+                    });
+                });
+            });
+
+            it('Translates an error response when using a callback', () => {
+                return new Promise((resolve) => {
+                    testSocket.http('get', '/test').send((res, err) => {
+                        err.should.have.a.property('status').that.equals(42);
+                        err.should.have.a.property('body').that.equals('goodbye');
+                        resolve();
+                    });
+                    mockSocket.fire('message', {
+                        _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                        _e: {
+                            _s: 42,
+                            _b: 'goodbye'
+                        }
+                    });
+                });
+            });
+
+            it('Translates a good response when using a promise', () => {
+                return new Promise((resolve) => {
+                    testSocket.http('get', '/test').send().then((res) => {
+                        res.should.have.a.property('status').that.equals(42);
+                        res.should.have.a.property('body').that.equals('hello');
+                        resolve();
+                    });
+                    mockSocket.fire('message', {
+                        _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                        _b: {
+                            _s: 42,
+                            _b: 'hello'
+                        }
+                    });
+                });
+            });
+
+            it('Translates an error response when using a callback', () => {
+                return new Promise((resolve) => {
+                    testSocket.http('get', '/test').send().catch((err) => {
+                        err.should.have.a.property('status').that.equals(42);
+                        err.should.have.a.property('body').that.equals('goodbye');
+                        resolve();
+                    });
+                    mockSocket.fire('message', {
+                        _rs: JSON.parse(mockSocket.lastSentMessage)._rq,
+                        _e: {
+                            _s: 42,
+                            _b: 'goodbye'
+                        }
+                    });
+                });
+            });
         });
     });
 
