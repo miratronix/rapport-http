@@ -202,6 +202,21 @@ describe('HTTP', () => {
             lastSentMessage.should.have.a.property('_b').that.equals('hello');
         });
 
+        it('Reports send errors on the callback when a callback is supplied', () => {
+            const sendErrorSocket = Rapport().use(plugin).wrap({ send: () => { throw new Error('Whoops') }, close: () => {}});
+            return new Promise((resolve) => {
+                sendErrorSocket.http('get', '/test').expectResponse(false).send((res, err) => {
+                    err.should.have.a.property('message').that.equals('Whoops');
+                    resolve();
+                });
+            });
+        });
+
+        it('Returns a rejected promise when a callback is not supplied and a send error is encountered', () => {
+            const sendErrorSocket = Rapport().use(plugin).wrap({ send: () => { throw new Error('Whoops') }, close: () => {}});
+            return sendErrorSocket.http('get', '/test').expectResponse(false).send().should.be.rejectedWith('Whoops');
+        });
+
         context('Translates responses', () => {
 
             it('Translates a good response when using a callback', () => {
